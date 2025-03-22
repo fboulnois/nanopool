@@ -4,6 +4,7 @@ pub use tokio_postgres::NoTls;
 
 use crate::errors::PoolError;
 
+/// Enum to configure the TLS connection
 #[derive(Clone)]
 pub enum Tls {
     Prefer,
@@ -13,6 +14,29 @@ pub enum Tls {
 }
 
 impl Tls {
+    /// Configures TLS connection based on the selected TLS mode
+    ///
+    /// Creates a TLS connector with appropriate security settings for the
+    /// selected mode:
+    ///
+    /// - `Prefer` or `Require` accepts invalid certificates and hostnames
+    /// - `VerifyCa` requires valid certificates but accepts invalid hostnames
+    /// - `VerifyIdentity` requires valid certificates and hostnames
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use nanopool::tls::Tls;
+    ///
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `PoolError` if the TLS connection cannot be built
     pub fn configure(self) -> Result<MakeTlsConnector, PoolError> {
         let mut builder = TlsConnector::builder();
 

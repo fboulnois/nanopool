@@ -1,13 +1,19 @@
 use crate::pool::PoolMessage;
 
+/// Error handling for the pool
 #[derive(Debug)]
 pub enum PoolError {
+    /// A database operation failed
     DatabaseError(tokio_postgres::Error),
+    /// A message could not be received
     RecvError(tokio::sync::oneshot::error::RecvError),
+    /// A message could not be sent
     SendError(tokio::sync::mpsc::error::SendError<PoolMessage>),
+    /// A TLS error occurred
     TlsError(native_tls::Error),
 }
 
+/// Convert `PoolError` to a string
 impl std::fmt::Display for PoolError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -19,24 +25,28 @@ impl std::fmt::Display for PoolError {
     }
 }
 
+/// Convert `tokio_postgres::Error` to `PoolError`
 impl From<tokio_postgres::Error> for PoolError {
     fn from(kind: tokio_postgres::Error) -> Self {
         PoolError::DatabaseError(kind)
     }
 }
 
+/// Convert `tokio::sync::oneshot::error::RecvError` to `PoolError`
 impl From<tokio::sync::oneshot::error::RecvError> for PoolError {
     fn from(kind: tokio::sync::oneshot::error::RecvError) -> Self {
         PoolError::RecvError(kind)
     }
 }
 
+/// Convert `tokio::sync::mpsc::error::SendError<PoolMessage>` to `PoolError`
 impl From<tokio::sync::mpsc::error::SendError<PoolMessage>> for PoolError {
     fn from(kind: tokio::sync::mpsc::error::SendError<PoolMessage>) -> Self {
         PoolError::SendError(kind)
     }
 }
 
+/// Convert `native_tls::Error` to `PoolError`
 impl From<native_tls::Error> for PoolError {
     fn from(kind: native_tls::Error) -> Self {
         PoolError::TlsError(kind)

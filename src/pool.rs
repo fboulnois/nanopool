@@ -10,11 +10,15 @@ pub use tokio_postgres::Config;
 
 use crate::errors::PoolError;
 
+/// Messages that can be sent to the pool
 pub enum PoolMessage {
+    /// Request a client from the pool
     GetClient { response: oneshot::Sender<PgClient> },
+    /// Return a client to the pool
     ReturnClient { client: Option<PgClient> },
 }
 
+/// A wrapper around the client that returns itself to the pool when dropped
 pub struct Client {
     client: Option<PgClient>,
     pool: mpsc::Sender<PoolMessage>,
@@ -34,6 +38,7 @@ impl std::ops::DerefMut for Client {
     }
 }
 
+/// Return the client to the pool asynchronously
 impl Drop for Client {
     fn drop(&mut self) {
         if let Some(client) = self.client.take() {
@@ -49,14 +54,65 @@ impl Drop for Client {
     }
 }
 
+/// A callback function that is invoked when a connection error occurs
 type PoolFn = Box<dyn Fn(Result<(), PoolError>) + Send + Sync + 'static>;
 
+/// A connection pool for PostgreSQL clients
 #[derive(Clone)]
 pub struct Pool {
     sender: mpsc::Sender<PoolMessage>,
 }
 
 impl Pool {
+    /// Create a new connection pool from a connection string
+    ///
+    /// This method creates a new PostgreSQL connection pool with the specified
+    /// TLS configuration and number of connections. It parses the provided
+    /// connection string into a PostgreSQL `Config` and creates the connections
+    /// immediately.
+    ///
+    /// # Examples
+    ///
+    /// ## Without TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::Pool;
+    /// # use nanopool::tls::NoTls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let pool = Pool::new(
+    ///     "postgresql://postgres:password@localhost/mydb",
+    ///     NoTls,
+    ///     4
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::Pool;
+    /// # use nanopool::tls::Tls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let secure_pool = Pool::new(
+    ///     "postgresql://postgres:password@localhost/mydb",
+    ///     tls,
+    ///     4
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `PoolError` if the connection string cannot be parsed or the
+    /// connections to the database cannot be established.
+    ///
+    /// # Notes
+    ///
+    /// If you need more control over the configuration, use `from_config` or
+    /// `from_config_with_callback` instead.
     pub fn new<T>(conn: impl Into<String>, tls: T, size: usize) -> Result<Self, PoolError>
     where
         T: MakeTlsConnect<Socket> + Clone + Send + 'static,
@@ -68,6 +124,63 @@ impl Pool {
         Self::from_config(config, tls, size)
     }
 
+    /// Create a new connection pool from a configuration
+    ///
+    /// This method creates a new PostgreSQL connection pool with the specified
+    /// TLS configuration and number of connections. It creates the connections
+    /// immediately.
+    ///
+    /// # Examples
+    ///
+    /// ## Without TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::{Config, Pool};
+    /// # use nanopool::tls::NoTls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut config = Config::new();
+    /// let config = config
+    ///   .user("postgres")
+    ///   .password("password")
+    ///   .host("localhost")
+    ///   .dbname("mydb")
+    ///   .clone();
+    ///
+    /// let pool = Pool::from_config(config, NoTls, 4)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::Config;
+    /// # use nanopool::pool::Pool;
+    /// # use nanopool::tls::Tls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut config = Config::new();
+    /// let config = config
+    ///   .user("postgres")
+    ///   .password("password")
+    ///   .host("localhost")
+    ///   .dbname("mydb")
+    ///   .clone();
+    ///
+    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let secure_pool = Pool::from_config(config, tls, 4)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `PoolError` if the connection string cannot be parsed or the
+    /// connections to the database cannot be established.
+    ///
+    /// # Notes
+    ///
+    /// If you need to handle connection errors after a connection is
+    /// established, use `from_config_with_callback` instead.
     pub fn from_config<T>(config: Config, tls: T, size: usize) -> Result<Self, PoolError>
     where
         T: MakeTlsConnect<Socket> + Clone + Send + 'static,
@@ -86,6 +199,83 @@ impl Pool {
         Ok(Self { sender })
     }
 
+    /// Create a new connection pool from a configuration with a callback
+    ///
+    /// This method creates a new PostgreSQL connection pool with the specified
+    /// TLS configuration and number of connections. It creates the connections
+    /// immediately and invokes the callback function when a connection error
+    /// occurs after a connection is established.
+    ///
+    /// # Examples
+    ///
+    /// ## Without TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::{Config, Pool};
+    /// # use nanopool::tls::NoTls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut config = Config::new();
+    /// let config = config
+    ///   .user("postgres")
+    ///   .password("password")
+    ///   .host("localhost")
+    ///   .dbname("mydb")
+    ///   .clone();
+    ///
+    /// let pool = Pool::from_config_with_callback(
+    ///   config,
+    ///   NoTls,
+    ///   4,
+    ///   Box::new(|result| {
+    ///     if let Err(err) = result {
+    ///       eprintln!("Error: {}", err);
+    ///     }
+    ///   })
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With TLS
+    ///
+    /// ```
+    /// # use nanopool::pool::{Config, Pool};
+    /// # use nanopool::tls::Tls;
+    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut config = Config::new();
+    /// let config = config
+    ///   .user("postgres")
+    ///   .password("password")
+    ///   .host("localhost")
+    ///   .dbname("mydb")
+    ///   .clone();
+    ///
+    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let secure_pool = Pool::from_config_with_callback(
+    ///   config,
+    ///   tls,
+    ///   4,
+    ///   Box::new(|result| {
+    ///     if let Err(err) = result {
+    ///       eprintln!("Error: {}", err);
+    ///     }
+    ///   })
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `PoolError` if the connection string cannot be parsed or the
+    /// connections to the database cannot be established.
+    ///
+    /// # Notes
+    ///
+    /// The callback function is invoked when a connection error occurs after
+    /// the connection is established. The callback function is passed a
+    /// `Result` that is `Ok(())` if the connection is successful and `Err` if
+    /// an error occurs.
     pub fn from_config_with_callback<T>(
         config: Config,
         tls: T,
@@ -109,6 +299,7 @@ impl Pool {
         Ok(Self { sender })
     }
 
+    /// The background task that manages the pool
     async fn manage_pool<T>(
         mut receiver: mpsc::Receiver<PoolMessage>,
         config: Config,
@@ -148,6 +339,7 @@ impl Pool {
         Ok(())
     }
 
+    /// Create a new connection
     async fn connect<T>(
         config: &Config,
         tls: T,
@@ -168,6 +360,40 @@ impl Pool {
         Ok(client)
     }
 
+    /// Acquire a client from the pool
+    ///
+    /// This method obtains a connection from the pool or waits until one
+    /// becomes available. The returned `Client` automatically returns the
+    /// underlying PostgreSQL connection to the pool when dropped.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use nanopool::pool::Pool;
+    /// # use nanopool::tls::NoTls;
+    /// # let pool = Pool::new("postgresql://postgres:postgres@localhost/postgres", NoTls, 4)?;
+    /// // Acquire a client from the pool
+    /// let client = pool.client().await?;
+    ///
+    /// // Use the client for database operations
+    /// let row = client.query_one("SELECT 1 + 2", &[]).await?;
+    /// let sum: i32 = row.get(0);
+    ///
+    /// // The client will be automatically returned to the pool when it goes out of scope
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns a `PoolError` if the client was closed or if there was an error
+    /// communicating with the pool.
+    ///
+    /// # Notes
+    ///
+    /// The returned `Client` implements `Drop` to automatically return the
+    /// connection to the pool, so there's no need to explicitly release it.
     pub async fn client(&self) -> Result<Client, PoolError> {
         let (sender, receiver) = oneshot::channel();
         self.sender
