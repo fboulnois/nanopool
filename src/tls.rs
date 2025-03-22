@@ -31,3 +31,28 @@ impl Tls {
         Ok(MakeTlsConnector::new(connector))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_prefer_tls() {
+        assert!(Tls::configure(Tls::Prefer).is_ok());
+    }
+
+    #[test]
+    fn test_require_tls() {
+        assert!(Tls::configure(Tls::Require).is_ok());
+    }
+
+    #[test]
+    fn test_verify_ca_tls() {
+        assert!(Tls::configure(Tls::VerifyCa).is_ok());
+    }
+
+    #[test]
+    fn test_verify_identity_tls() {
+        assert!(Tls::configure(Tls::VerifyIdentity).is_ok());
+    }
+}

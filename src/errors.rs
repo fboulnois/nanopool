@@ -42,3 +42,51 @@ impl From<native_tls::Error> for PoolError {
         PoolError::TlsError(kind)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_pool_error_database() {
+        let pg_error = tokio_postgres::connect("test.invalid", tokio_postgres::NoTls)
+            .await
+            .err()
+            .unwrap();
+        let error = PoolError::from(pg_error);
+        assert_eq!(
+            format!("{error}"),
+            "invalid connection string: unexpected EOF"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_pool_error_recv() {
+        let (sender, receiver) = tokio::sync::oneshot::channel::<i32>();
+        drop(sender);
+        let recv_error = receiver.await.unwrap_err();
+        let error = PoolError::from(recv_error);
+        assert_eq!(format!("{error}"), "channel closed");
+    }
+
+    #[tokio::test]
+    async fn test_pool_error_send() {
+        let (sender, receiver) = tokio::sync::mpsc::channel(1);
+        drop(receiver);
+        let send_error = sender
+            .send(PoolMessage::ReturnClient { client: None })
+            .await
+            .unwrap_err();
+        let error = PoolError::from(send_error);
+        assert_eq!(format!("{error}"), "channel closed");
+    }
+
+    #[test]
+    fn test_pool_error_tls() {
+        let tls_error = native_tls::Identity::from_pkcs8(&[0xff], &[0xff])
+            .err()
+            .unwrap();
+        let error = PoolError::from(tls_error);
+        assert_eq!(format!("{error}"), "expected PKCS#8 PEM");
+    }
+}
