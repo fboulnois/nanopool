@@ -180,3 +180,124 @@ impl Pool {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use tokio::task::JoinSet;
+
+    use super::*;
+
+    use crate::tls::{NoTls, Tls};
+
+    const CONNECTION_STRING: &'static str = "postgresql://postgres:postgres@localhost/postgres";
+    const POOL_SIZE: usize = 4;
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_notls() {
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let client = pool.client().await.unwrap();
+        let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
+        let sum: i32 = row.get(0);
+        assert_eq!(sum, 3);
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_tls() {
+        let tls = Tls::configure(Tls::Prefer).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, tls, POOL_SIZE).unwrap();
+        let client = pool.client().await.unwrap();
+        let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
+        let sum: i32 = row.get(0);
+        assert_eq!(sum, 3);
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_error() {
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let client = pool.client().await.unwrap();
+        let _ = client
+            .execute("SELECT pg_terminate_backend(pg_backend_pid())", &[])
+            .await;
+        assert!(client.query_one("SELECT 1 + 2", &[]).await.is_err());
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_from_config() {
+        let mut config = Config::new();
+        let config = config
+            .user("postgres")
+            .password("postgres")
+            .host("localhost")
+            .dbname("postgres")
+            .clone();
+        let pool = Pool::from_config(config, NoTls, POOL_SIZE).unwrap();
+        let client = pool.client().await.unwrap();
+        let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
+        let sum: i32 = row.get(0);
+        assert_eq!(sum, 3);
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_from_config_with_callback() {
+        let mut config = Config::new();
+        let config = config
+            .user("postgres")
+            .password("postgres")
+            .host("localhost")
+            .dbname("postgres")
+            .clone();
+        let pool = Pool::from_config_with_callback(
+            config,
+            NoTls,
+            POOL_SIZE,
+            Box::new(|result| {
+                assert!(result.is_err());
+            }),
+        )
+        .unwrap();
+        let client = pool.client().await.unwrap();
+        let _ = client
+            .execute("SELECT pg_terminate_backend(pg_backend_pid())", &[])
+            .await;
+        assert!(client.query_one("SELECT 1 + 2", &[]).await.is_err());
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_mut_client() {
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let mut client = pool.client().await.unwrap();
+        let transaction = client.transaction().await.unwrap();
+        let row = transaction.query_one("SELECT 1 + 2", &[]).await.unwrap();
+        transaction.commit().await.unwrap();
+        let sum: i32 = row.get(0);
+        assert_eq!(sum, 3);
+    }
+
+    #[ignore = "requires a database connection"]
+    #[tokio::test]
+    async fn test_pool_stress() {
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let mut join = JoinSet::new();
+        // spawn tasks to simulate pool load
+        for _i in 0..128 {
+            let clone = pool.clone();
+            join.spawn(async move {
+                let client = clone.client().await.unwrap();
+                let row = client
+                    .query_one("SELECT random() FROM pg_sleep(0.1)", &[])
+                    .await
+                    .unwrap();
+                let id: f64 = row.get(0);
+                id
+            });
+        }
+        let results = join.join_all().await;
+        assert!(results.len() > 0);
+    }
+}
