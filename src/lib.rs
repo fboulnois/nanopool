@@ -4,3 +4,7 @@ pub mod errors;
 pub mod pool;
 /// TLS connections
 pub mod tls;
+
+/// Re-export the `uuid` type
+#[cfg(feature = "uuid")]
+pub mod uuid;

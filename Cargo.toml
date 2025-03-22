@@ -3,11 +3,15 @@ name = "nanopool"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+uuid = [ "tokio-postgres/with-uuid-1", "dep:uuid" ]
+
 [dependencies]
 native-tls = "0.2"
 postgres-native-tls = "0.5"
 tokio = { version = "1", features = [ "rt-multi-thread" ] }
 tokio-postgres = "0.7"
+uuid = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = [ "macros" ] }
