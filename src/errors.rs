@@ -25,6 +25,18 @@ impl std::fmt::Display for PoolError {
     }
 }
 
+/// Implement `std::error::Error` for `PoolError`
+impl std::error::Error for PoolError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            PoolError::DatabaseError(err) => Some(err),
+            PoolError::TlsError(err) => Some(err),
+            PoolError::RecvError(err) => Some(err),
+            PoolError::SendError(err) => Some(err),
+        }
+    }
+}
+
 /// Convert `tokio_postgres::Error` to `PoolError`
 impl From<tokio_postgres::Error> for PoolError {
     fn from(kind: tokio_postgres::Error) -> Self {
@@ -57,6 +69,8 @@ impl From<native_tls::Error> for PoolError {
 mod tests {
     use super::*;
 
+    use std::error::Error;
+
     #[tokio::test]
     async fn test_pool_error_database() {
         let pg_error = tokio_postgres::connect("test.invalid", tokio_postgres::NoTls)
@@ -64,10 +78,10 @@ mod tests {
             .err()
             .unwrap();
         let error = PoolError::from(pg_error);
-        assert_eq!(
-            format!("{error}"),
-            "invalid connection string: unexpected EOF"
-        );
+        let source = error.source().unwrap();
+        let message = "invalid connection string: unexpected EOF";
+        assert_eq!(format!("{error}"), message);
+        assert_eq!(format!("{source}"), message);
     }
 
     #[tokio::test]
@@ -76,7 +90,10 @@ mod tests {
         drop(sender);
         let recv_error = receiver.await.unwrap_err();
         let error = PoolError::from(recv_error);
-        assert_eq!(format!("{error}"), "channel closed");
+        let source = error.source().unwrap();
+        let message = "channel closed";
+        assert_eq!(format!("{error}"), message);
+        assert_eq!(format!("{source}"), message);
     }
 
     #[tokio::test]
@@ -88,7 +105,10 @@ mod tests {
             .await
             .unwrap_err();
         let error = PoolError::from(send_error);
-        assert_eq!(format!("{error}"), "channel closed");
+        let source = error.source().unwrap();
+        let message = "channel closed";
+        assert_eq!(format!("{error}"), message);
+        assert_eq!(format!("{source}"), message);
     }
 
     #[test]
@@ -97,6 +117,9 @@ mod tests {
             .err()
             .unwrap();
         let error = PoolError::from(tls_error);
-        assert_eq!(format!("{error}"), "expected PKCS#8 PEM");
+        let source = error.source().unwrap();
+        let message = "expected PKCS#8 PEM";
+        assert_eq!(format!("{error}"), message);
+        assert_eq!(format!("{source}"), message);
     }
 }
