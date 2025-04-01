@@ -42,13 +42,8 @@ impl std::ops::DerefMut for Client {
 impl Drop for Client {
     fn drop(&mut self) {
         if let Some(client) = self.client.take() {
-            let pool = self.pool.clone();
-            tokio::spawn(async move {
-                let _ = pool
-                    .send(PoolMessage::ReturnClient {
-                        client: Some(client),
-                    })
-                    .await;
+            let _ = self.pool.try_send(PoolMessage::ReturnClient {
+                client: Some(client),
             });
         }
     }
