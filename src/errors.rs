@@ -4,23 +4,23 @@ use crate::pool::PoolMessage;
 #[derive(Debug)]
 pub enum PoolError {
     /// A database operation failed
-    DatabaseError(tokio_postgres::Error),
+    Database(tokio_postgres::Error),
     /// A message could not be received
-    RecvError(tokio::sync::oneshot::error::RecvError),
+    Recv(tokio::sync::oneshot::error::RecvError),
     /// A message could not be sent
-    SendError(tokio::sync::mpsc::error::SendError<PoolMessage>),
+    Send(tokio::sync::mpsc::error::SendError<PoolMessage>),
     /// A TLS error occurred
-    TlsError(native_tls::Error),
+    Tls(native_tls::Error),
 }
 
 /// Convert `PoolError` to a string
 impl std::fmt::Display for PoolError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PoolError::DatabaseError(err) => std::fmt::Display::fmt(err, f),
-            PoolError::TlsError(err) => std::fmt::Display::fmt(err, f),
-            PoolError::RecvError(err) => std::fmt::Display::fmt(err, f),
-            PoolError::SendError(err) => std::fmt::Display::fmt(err, f),
+            PoolError::Database(err) => std::fmt::Display::fmt(err, f),
+            PoolError::Tls(err) => std::fmt::Display::fmt(err, f),
+            PoolError::Recv(err) => std::fmt::Display::fmt(err, f),
+            PoolError::Send(err) => std::fmt::Display::fmt(err, f),
         }
     }
 }
@@ -29,10 +29,10 @@ impl std::fmt::Display for PoolError {
 impl std::error::Error for PoolError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            PoolError::DatabaseError(err) => Some(err),
-            PoolError::TlsError(err) => Some(err),
-            PoolError::RecvError(err) => Some(err),
-            PoolError::SendError(err) => Some(err),
+            PoolError::Database(err) => Some(err),
+            PoolError::Tls(err) => Some(err),
+            PoolError::Recv(err) => Some(err),
+            PoolError::Send(err) => Some(err),
         }
     }
 }
@@ -40,28 +40,28 @@ impl std::error::Error for PoolError {
 /// Convert `tokio_postgres::Error` to `PoolError`
 impl From<tokio_postgres::Error> for PoolError {
     fn from(kind: tokio_postgres::Error) -> Self {
-        PoolError::DatabaseError(kind)
+        PoolError::Database(kind)
     }
 }
 
 /// Convert `tokio::sync::oneshot::error::RecvError` to `PoolError`
 impl From<tokio::sync::oneshot::error::RecvError> for PoolError {
     fn from(kind: tokio::sync::oneshot::error::RecvError) -> Self {
-        PoolError::RecvError(kind)
+        PoolError::Recv(kind)
     }
 }
 
 /// Convert `tokio::sync::mpsc::error::SendError<PoolMessage>` to `PoolError`
 impl From<tokio::sync::mpsc::error::SendError<PoolMessage>> for PoolError {
     fn from(kind: tokio::sync::mpsc::error::SendError<PoolMessage>) -> Self {
-        PoolError::SendError(kind)
+        PoolError::Send(kind)
     }
 }
 
 /// Convert `native_tls::Error` to `PoolError`
 impl From<native_tls::Error> for PoolError {
     fn from(kind: native_tls::Error) -> Self {
-        PoolError::TlsError(kind)
+        PoolError::Tls(kind)
     }
 }
 
