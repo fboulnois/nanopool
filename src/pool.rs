@@ -73,12 +73,12 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::Pool;
     /// # use nanopool::tls::NoTls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let pool = Pool::new(
     ///     "postgresql://postgres:password@localhost/mydb",
     ///     NoTls,
     ///     4
-    /// )?;
+    /// ).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -88,13 +88,13 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::Pool;
     /// # use nanopool::tls::Tls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let tls = Tls::configure(Tls::Prefer)?;
     /// let secure_pool = Pool::new(
     ///     "postgresql://postgres:password@localhost/mydb",
     ///     tls,
     ///     4
-    /// )?;
+    /// ).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -108,7 +108,7 @@ impl Pool {
     ///
     /// If you need more control over the configuration, use `from_config` or
     /// `from_config_with_callback` instead.
-    pub fn new<T>(conn: impl Into<String>, tls: T, size: usize) -> Result<Self, PoolError>
+    pub async fn new<T>(conn: impl Into<String>, tls: T, size: usize) -> Result<Self, PoolError>
     where
         T: MakeTlsConnect<Socket> + Clone + Send + 'static,
         <T as MakeTlsConnect<Socket>>::Stream: Send + 'static,
@@ -116,7 +116,7 @@ impl Pool {
         <<T as MakeTlsConnect<Socket>>::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         let config = conn.into().parse::<Config>()?;
-        Self::from_config(config, tls, size)
+        Self::from_config(config, tls, size).await
     }
 
     /// Create a new connection pool from a configuration
@@ -132,7 +132,7 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::{Config, Pool};
     /// # use nanopool::tls::NoTls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
     ///   .user("postgres")
@@ -141,7 +141,7 @@ impl Pool {
     ///   .dbname("mydb")
     ///   .clone();
     ///
-    /// let pool = Pool::from_config(config, NoTls, 4)?;
+    /// let pool = Pool::from_config(config, NoTls, 4).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -152,7 +152,7 @@ impl Pool {
     /// # use nanopool::pool::Config;
     /// # use nanopool::pool::Pool;
     /// # use nanopool::tls::Tls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
     ///   .user("postgres")
@@ -162,7 +162,7 @@ impl Pool {
     ///   .clone();
     ///
     /// let tls = Tls::configure(Tls::Prefer)?;
-    /// let secure_pool = Pool::from_config(config, tls, 4)?;
+    /// let secure_pool = Pool::from_config(config, tls, 4).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -176,7 +176,7 @@ impl Pool {
     ///
     /// If you need to handle connection errors after a connection is
     /// established, use `from_config_with_callback` instead.
-    pub fn from_config<T>(config: Config, tls: T, size: usize) -> Result<Self, PoolError>
+    pub async fn from_config<T>(config: Config, tls: T, size: usize) -> Result<Self, PoolError>
     where
         T: MakeTlsConnect<Socket> + Clone + Send + 'static,
         <T as MakeTlsConnect<Socket>>::Stream: Send + 'static,
@@ -184,13 +184,7 @@ impl Pool {
         <<T as MakeTlsConnect<Socket>>::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         let (sender, receiver) = mpsc::channel::<PoolMessage>(size);
-        tokio::spawn(Self::manage_pool(
-            receiver,
-            config,
-            tls,
-            size,
-            Arc::new(None),
-        ));
+        Self::manage_pool(receiver, config, tls, size, Arc::new(None)).await?;
         Ok(Self { sender })
     }
 
@@ -208,7 +202,7 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::{Config, Pool};
     /// # use nanopool::tls::NoTls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
     ///   .user("postgres")
@@ -226,7 +220,7 @@ impl Pool {
     ///       eprintln!("Error: {}", err);
     ///     }
     ///   })
-    /// )?;
+    /// ).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -236,7 +230,7 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::{Config, Pool};
     /// # use nanopool::tls::Tls;
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
     ///   .user("postgres")
@@ -255,7 +249,7 @@ impl Pool {
     ///       eprintln!("Error: {}", err);
     ///     }
     ///   })
-    /// )?;
+    /// ).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -271,7 +265,7 @@ impl Pool {
     /// the connection is established. The callback function is passed a
     /// `Result` that is `Ok(())` if the connection is successful and `Err` if
     /// an error occurs.
-    pub fn from_config_with_callback<T>(
+    pub async fn from_config_with_callback<T>(
         config: Config,
         tls: T,
         size: usize,
@@ -284,13 +278,7 @@ impl Pool {
         <<T as MakeTlsConnect<Socket>>::TlsConnect as TlsConnect<Socket>>::Future: Send,
     {
         let (sender, receiver) = mpsc::channel::<PoolMessage>(size);
-        tokio::spawn(Self::manage_pool(
-            receiver,
-            config,
-            tls,
-            size,
-            Arc::new(Some(callback)),
-        ));
+        Self::manage_pool(receiver, config, tls, size, Arc::new(Some(callback))).await?;
         Ok(Self { sender })
     }
 
@@ -312,25 +300,27 @@ impl Pool {
             let client = Self::connect(&config, tls.clone(), callback.clone()).await?;
             clients.push(client);
         }
-        while let Some(command) = receiver.recv().await {
-            match command {
-                PoolMessage::GetClient { response } => {
-                    if let Some(client) = clients.pop() {
-                        let _ = response.send(client);
-                    } else {
-                        waiting.push(response);
-                    };
-                }
-                PoolMessage::ReturnClient { client } => {
-                    let client = client.unwrap(); // client is always Some
-                    if let Some(waiter) = waiting.pop() {
-                        let _ = waiter.send(client);
-                    } else {
-                        clients.push(client);
+        tokio::spawn(async move {
+            while let Some(command) = receiver.recv().await {
+                match command {
+                    PoolMessage::GetClient { response } => {
+                        if let Some(client) = clients.pop() {
+                            let _ = response.send(client);
+                        } else {
+                            waiting.push(response);
+                        };
+                    }
+                    PoolMessage::ReturnClient { client } => {
+                        let client = client.unwrap(); // client is always Some
+                        if let Some(waiter) = waiting.pop() {
+                            let _ = waiter.send(client);
+                        } else {
+                            clients.push(client);
+                        }
                     }
                 }
             }
-        }
+        });
         Ok(())
     }
 
@@ -367,7 +357,7 @@ impl Pool {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # use nanopool::pool::Pool;
     /// # use nanopool::tls::NoTls;
-    /// # let pool = Pool::new("postgresql://postgres:postgres@localhost/postgres", NoTls, 4)?;
+    /// # let pool = Pool::new("postgresql://postgres:postgres@localhost/postgres", NoTls, 4).await?;
     /// // Acquire a client from the pool
     /// let client = pool.client().await?;
     ///
@@ -416,7 +406,9 @@ mod tests {
     #[ignore = "requires a database connection"]
     #[tokio::test]
     async fn test_pool_notls() {
-        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
+            .await
+            .unwrap();
         let client = pool.client().await.unwrap();
         let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
         let sum: i32 = row.get(0);
@@ -427,7 +419,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_tls() {
         let tls = Tls::configure(Tls::Prefer).unwrap();
-        let pool = Pool::new(CONNECTION_STRING, tls, POOL_SIZE).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, tls, POOL_SIZE).await.unwrap();
         let client = pool.client().await.unwrap();
         let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
         let sum: i32 = row.get(0);
@@ -437,7 +429,9 @@ mod tests {
     #[ignore = "requires a database connection"]
     #[tokio::test]
     async fn test_pool_error() {
-        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
+            .await
+            .unwrap();
         let client = pool.client().await.unwrap();
         let _ = client
             .execute("SELECT pg_terminate_backend(pg_backend_pid())", &[])
@@ -455,7 +449,7 @@ mod tests {
             .host("localhost")
             .dbname("postgres")
             .clone();
-        let pool = Pool::from_config(config, NoTls, POOL_SIZE).unwrap();
+        let pool = Pool::from_config(config, NoTls, POOL_SIZE).await.unwrap();
         let client = pool.client().await.unwrap();
         let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();
         let sum: i32 = row.get(0);
@@ -480,6 +474,7 @@ mod tests {
                 assert!(result.is_err());
             }),
         )
+        .await
         .unwrap();
         let client = pool.client().await.unwrap();
         let _ = client
@@ -491,7 +486,9 @@ mod tests {
     #[ignore = "requires a database connection"]
     #[tokio::test]
     async fn test_pool_mut_client() {
-        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
+            .await
+            .unwrap();
         let mut client = pool.client().await.unwrap();
         let transaction = client.transaction().await.unwrap();
         let row = transaction.query_one("SELECT 1 + 2", &[]).await.unwrap();
@@ -503,7 +500,9 @@ mod tests {
     #[ignore = "requires a database connection"]
     #[tokio::test]
     async fn test_pool_stress() {
-        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE).unwrap();
+        let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
+            .await
+            .unwrap();
         let mut join = JoinSet::new();
         // spawn tasks to simulate pool load
         for _i in 0..128 {
