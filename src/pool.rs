@@ -428,7 +428,7 @@ mod tests {
 
     #[ignore = "requires a database connection"]
     #[tokio::test]
-    async fn test_pool_error() {
+    async fn test_pool_client_query_error() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
             .await
             .unwrap();
