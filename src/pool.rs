@@ -427,6 +427,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "both host and hostaddr are missing")]
+    async fn test_pool_missing_host() {
+        let _pool = Pool::new("", NoTls, POOL_SIZE).await.unwrap();
+    }
+
+    #[tokio::test]
     #[ignore = "requires a database connection"]
     async fn test_pool_client_query_error() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
