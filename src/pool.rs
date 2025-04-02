@@ -433,6 +433,13 @@ mod tests {
     }
 
     #[tokio::test]
+    #[should_panic(expected = "Connection refused")]
+    async fn test_pool_connection_refused() {
+        let config = Config::new().host("localhost").port(65535).clone();
+        let _pool = Pool::from_config(config, NoTls, POOL_SIZE).await.unwrap();
+    }
+
+    #[tokio::test]
     #[ignore = "requires a database connection"]
     async fn test_pool_client_query_error() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
