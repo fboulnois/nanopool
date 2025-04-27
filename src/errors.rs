@@ -91,8 +91,8 @@ mod tests {
         let error = PoolError::from(pg_error);
         let source = error.source().unwrap();
         let message = "invalid connection string: unexpected EOF";
-        assert_eq!(format!("{error}"), message);
-        assert_eq!(format!("{source}"), message);
+        assert_eq!(error.to_string(), message);
+        assert_eq!(source.to_string(), message);
     }
 
     #[test]
@@ -102,8 +102,8 @@ mod tests {
         let io_error = std::io::Error::new(kind, message);
         let error = PoolError::from(io_error);
         let source = error.source().unwrap();
-        assert_eq!(format!("{error}"), message);
-        assert_eq!(format!("{source}"), message);
+        assert_eq!(error.to_string(), message);
+        assert_eq!(source.to_string(), message);
     }
 
     #[tokio::test]
@@ -114,8 +114,8 @@ mod tests {
         let error = PoolError::from(recv_error);
         let source = error.source().unwrap();
         let message = "channel closed";
-        assert_eq!(format!("{error}"), message);
-        assert_eq!(format!("{source}"), message);
+        assert_eq!(error.to_string(), message);
+        assert_eq!(source.to_string(), message);
     }
 
     #[tokio::test]
@@ -129,8 +129,8 @@ mod tests {
         let error = PoolError::from(send_error);
         let source = error.source().unwrap();
         let message = "channel closed";
-        assert_eq!(format!("{error}"), message);
-        assert_eq!(format!("{source}"), message);
+        assert_eq!(error.to_string(), message);
+        assert_eq!(source.to_string(), message);
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod tests {
         let error = PoolError::from(tls_error);
         let source = error.source().unwrap();
         let message = "expected PKCS#8 PEM";
-        assert_eq!(format!("{error}"), message);
-        assert_eq!(format!("{source}"), message);
+        assert_eq!(error.to_string(), message);
+        assert_eq!(source.to_string(), message);
     }
 }
