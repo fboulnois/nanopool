@@ -5,6 +5,8 @@ use crate::pool::PoolMessage;
 pub enum PoolError {
     /// A database operation failed
     Database(tokio_postgres::Error),
+    /// An I/O operation failed
+    Io(std::io::Error),
     /// A message could not be received
     Recv(tokio::sync::oneshot::error::RecvError),
     /// A message could not be sent
@@ -18,6 +20,7 @@ impl std::fmt::Display for PoolError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             PoolError::Database(err) => std::fmt::Display::fmt(err, f),
+            PoolError::Io(err) => std::fmt::Display::fmt(err, f),
             PoolError::Tls(err) => std::fmt::Display::fmt(err, f),
             PoolError::Recv(err) => std::fmt::Display::fmt(err, f),
             PoolError::Send(err) => std::fmt::Display::fmt(err, f),
@@ -30,6 +33,7 @@ impl std::error::Error for PoolError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             PoolError::Database(err) => Some(err),
+            PoolError::Io(err) => Some(err),
             PoolError::Tls(err) => Some(err),
             PoolError::Recv(err) => Some(err),
             PoolError::Send(err) => Some(err),
@@ -41,6 +45,13 @@ impl std::error::Error for PoolError {
 impl From<tokio_postgres::Error> for PoolError {
     fn from(kind: tokio_postgres::Error) -> Self {
         PoolError::Database(kind)
+    }
+}
+
+/// Convert `std::io::Error` to `PoolError`
+impl From<std::io::Error> for PoolError {
+    fn from(kind: std::io::Error) -> Self {
+        PoolError::Io(kind)
     }
 }
 
@@ -80,6 +91,17 @@ mod tests {
         let error = PoolError::from(pg_error);
         let source = error.source().unwrap();
         let message = "invalid connection string: unexpected EOF";
+        assert_eq!(format!("{error}"), message);
+        assert_eq!(format!("{source}"), message);
+    }
+
+    #[test]
+    fn test_pool_error_io() {
+        let message = "io error";
+        let kind = std::io::ErrorKind::Other;
+        let io_error = std::io::Error::new(kind, message);
+        let error = PoolError::from(io_error);
+        let source = error.source().unwrap();
         assert_eq!(format!("{error}"), message);
         assert_eq!(format!("{source}"), message);
     }
