@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 /// Connection pool errors
 pub mod errors;
 /// PostgreSQL connection pool
