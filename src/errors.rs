@@ -98,8 +98,7 @@ mod tests {
     #[test]
     fn test_pool_error_io() {
         let message = "io error";
-        let kind = std::io::ErrorKind::Other;
-        let io_error = std::io::Error::new(kind, message);
+        let io_error = std::io::Error::other(message);
         let error = PoolError::from(io_error);
         let source = error.source().unwrap();
         assert_eq!(error.to_string(), message);
