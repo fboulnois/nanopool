@@ -308,7 +308,7 @@ impl Pool {
                             let _ = response.send(client);
                         } else {
                             waiting.push(response);
-                        };
+                        }
                     }
                     PoolMessage::ReturnClient { client } => {
                         let client = client.unwrap(); // client is always Some
@@ -400,7 +400,7 @@ mod tests {
 
     use crate::tls::{NoTls, Tls};
 
-    const CONNECTION_STRING: &'static str = "postgresql://postgres:postgres@localhost/postgres";
+    const CONNECTION_STRING: &str = "postgresql://postgres:postgres@localhost/postgres";
     const POOL_SIZE: usize = 4;
 
     #[tokio::test]
@@ -531,6 +531,6 @@ mod tests {
             });
         }
         let results = join.join_all().await;
-        assert!(results.len() > 0);
+        assert!(!results.is_empty());
     }
 }
