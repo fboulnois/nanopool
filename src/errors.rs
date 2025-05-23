@@ -10,7 +10,7 @@ pub enum PoolError {
     /// A message could not be received
     Recv(tokio::sync::oneshot::error::RecvError),
     /// A message could not be sent
-    Send(tokio::sync::mpsc::error::SendError<PoolMessage>),
+    Send(Box<tokio::sync::mpsc::error::SendError<PoolMessage>>),
     /// A TLS error occurred
     Tls(native_tls::Error),
 }
@@ -65,7 +65,7 @@ impl From<tokio::sync::oneshot::error::RecvError> for PoolError {
 /// Convert `tokio::sync::mpsc::error::SendError<PoolMessage>` to `PoolError`
 impl From<tokio::sync::mpsc::error::SendError<PoolMessage>> for PoolError {
     fn from(kind: tokio::sync::mpsc::error::SendError<PoolMessage>) -> Self {
-        PoolError::Send(kind)
+        PoolError::Send(Box::new(kind))
     }
 }
 
