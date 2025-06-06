@@ -1,8 +1,107 @@
-pub use native_tls::{Certificate, TlsConnector};
-pub use postgres_native_tls::MakeTlsConnector;
 pub use tokio_postgres::NoTls;
 
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio_native_tls::native_tls::{Error as TlsError, TlsConnector};
+use tokio_native_tls::TlsConnector as TokioTlsConnector;
+use tokio_postgres::tls::{MakeTlsConnect, TlsConnect, TlsStream};
+use tokio_postgres::Socket;
+
 use crate::errors::PoolError;
+
+pub struct NativeTlsStream(tokio_native_tls::TlsStream<Socket>);
+
+impl TlsStream for NativeTlsStream {
+    fn channel_binding(&self) -> tokio_postgres::tls::ChannelBinding {
+        tokio_postgres::tls::ChannelBinding::none()
+    }
+}
+
+impl AsyncRead for NativeTlsStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.0).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for NativeTlsStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Pin::new(&mut self.0).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.0).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.0).poll_shutdown(cx)
+    }
+}
+
+#[derive(Clone)]
+pub struct NativeTlsConnector {
+    inner: TokioTlsConnector,
+}
+
+impl NativeTlsConnector {
+    #[must_use]
+    pub fn new(connector: TlsConnector) -> Self {
+        Self {
+            inner: TokioTlsConnector::from(connector),
+        }
+    }
+
+    #[must_use]
+    pub fn inner(&self) -> &TokioTlsConnector {
+        &self.inner
+    }
+}
+
+impl MakeTlsConnect<Socket> for NativeTlsConnector {
+    type Stream = NativeTlsStream;
+    type TlsConnect = NativeTlsConnect;
+    type Error = TlsError;
+
+    fn make_tls_connect(&mut self, domain: &str) -> Result<Self::TlsConnect, Self::Error> {
+        Ok(NativeTlsConnect {
+            connector: self.inner.clone(),
+            domain: domain.to_string(),
+        })
+    }
+}
+
+pub struct NativeTlsConnect {
+    connector: TokioTlsConnector,
+    domain: String,
+}
+
+impl TlsConnect<Socket> for NativeTlsConnect {
+    type Stream = NativeTlsStream;
+    type Error = TlsError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>> + Send>>;
+
+    fn connect(self, stream: Socket) -> Self::Future {
+        Box::pin(async move {
+            let tls_stream = self.connector.connect(&self.domain, stream).await?;
+            Ok(NativeTlsStream(tls_stream))
+        })
+    }
+}
 
 /// Enum to configure the TLS connection
 #[derive(Clone)]
@@ -37,7 +136,7 @@ impl Tls {
     /// # Errors
     ///
     /// Returns a `PoolError` if the TLS connection cannot be built
-    pub fn configure(self) -> Result<MakeTlsConnector, PoolError> {
+    pub fn configure(self) -> Result<NativeTlsConnector, PoolError> {
         let mut builder = TlsConnector::builder();
 
         match self {
@@ -52,7 +151,7 @@ impl Tls {
         }
 
         let connector = builder.build()?;
-        Ok(MakeTlsConnector::new(connector))
+        Ok(NativeTlsConnector::new(connector))
     }
 }
 

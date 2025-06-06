@@ -12,9 +12,8 @@ license = "MIT"
 uuid = [ "tokio-postgres/with-uuid-1", "dep:uuid" ]
 
 [dependencies]
-native-tls = "0.2"
-postgres-native-tls = "0.5"
 tokio = { version = "1", features = [ "rt" ] }
+tokio-native-tls = "0.3"
 tokio-postgres = "0.7"
 uuid = { version = "1", optional = true }
 

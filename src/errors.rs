@@ -12,7 +12,7 @@ pub enum PoolError {
     /// A message could not be sent
     Send(Box<tokio::sync::mpsc::error::SendError<PoolMessage>>),
     /// A TLS error occurred
-    Tls(native_tls::Error),
+    Tls(tokio_native_tls::native_tls::Error),
 }
 
 /// Convert `PoolError` to a string
@@ -70,8 +70,8 @@ impl From<tokio::sync::mpsc::error::SendError<PoolMessage>> for PoolError {
 }
 
 /// Convert `native_tls::Error` to `PoolError`
-impl From<native_tls::Error> for PoolError {
-    fn from(kind: native_tls::Error) -> Self {
+impl From<tokio_native_tls::native_tls::Error> for PoolError {
+    fn from(kind: tokio_native_tls::native_tls::Error) -> Self {
         PoolError::Tls(kind)
     }
 }
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_pool_error_tls() {
-        let tls_error = native_tls::Identity::from_pkcs8(&[0xff], &[0xff])
+        let tls_error = tokio_native_tls::native_tls::Identity::from_pkcs8(&[0xff], &[0xff])
             .err()
             .unwrap();
         let error = PoolError::from(tls_error);
