@@ -87,9 +87,9 @@ impl Pool {
     ///
     /// ```
     /// # use nanopool::pool::Pool;
-    /// # use nanopool::tls::Tls;
+    /// # use nanopool::tls;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let tls = tls::configure(tls::TlsMode::Prefer)?;
     /// let secure_pool = Pool::new(
     ///     "postgresql://postgres:password@localhost/mydb",
     ///     tls,
@@ -151,7 +151,7 @@ impl Pool {
     /// ```
     /// # use nanopool::pool::Config;
     /// # use nanopool::pool::Pool;
-    /// # use nanopool::tls::Tls;
+    /// # use nanopool::tls;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
@@ -161,7 +161,7 @@ impl Pool {
     ///   .dbname("mydb")
     ///   .clone();
     ///
-    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let tls = tls::configure(tls::TlsMode::Prefer)?;
     /// let secure_pool = Pool::from_config(config, tls, 4).await?;
     /// # Ok(())
     /// # }
@@ -229,7 +229,7 @@ impl Pool {
     ///
     /// ```
     /// # use nanopool::pool::{Config, Pool};
-    /// # use nanopool::tls::Tls;
+    /// # use nanopool::tls;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut config = Config::new();
     /// let config = config
@@ -239,7 +239,7 @@ impl Pool {
     ///   .dbname("mydb")
     ///   .clone();
     ///
-    /// let tls = Tls::configure(Tls::Prefer)?;
+    /// let tls = tls::configure(tls::TlsMode::Prefer)?;
     /// let secure_pool = Pool::from_config_with_callback(
     ///   config,
     ///   tls,
@@ -398,7 +398,7 @@ mod tests {
 
     use super::*;
 
-    use crate::tls::{NoTls, Tls};
+    use crate::tls::{self, NoTls};
 
     const CONNECTION_STRING: &str = "postgresql://postgres:postgres@localhost/postgres";
     const POOL_SIZE: usize = 4;
@@ -418,7 +418,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires a database connection"]
     async fn test_pool_tls() {
-        let tls = Tls::configure(Tls::Prefer).unwrap();
+        let tls = tls::configure(tls::TlsMode::Prefer).unwrap();
         let pool = Pool::new(CONNECTION_STRING, tls, POOL_SIZE).await.unwrap();
         let client = pool.client().await.unwrap();
         let row = client.query_one("SELECT 1 + 2", &[]).await.unwrap();

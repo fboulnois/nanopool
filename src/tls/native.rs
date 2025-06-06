@@ -1,15 +1,14 @@
-pub use tokio_postgres::NoTls;
-
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_native_tls::native_tls::{Error as TlsError, TlsConnector};
+use tokio_native_tls::native_tls::{Error as TlsError, TlsConnector as NativeTlsConnector};
 use tokio_native_tls::TlsConnector as TokioTlsConnector;
 use tokio_postgres::tls::{MakeTlsConnect, TlsConnect, TlsStream};
 use tokio_postgres::Socket;
 
 use crate::errors::PoolError;
+use crate::tls::TlsMode;
 
 pub struct NativeTlsStream(tokio_native_tls::TlsStream<Socket>);
 
@@ -54,13 +53,13 @@ impl AsyncWrite for NativeTlsStream {
 }
 
 #[derive(Clone)]
-pub struct NativeTlsConnector {
+pub struct TlsConnector {
     inner: TokioTlsConnector,
 }
 
-impl NativeTlsConnector {
+impl TlsConnector {
     #[must_use]
-    pub fn new(connector: TlsConnector) -> Self {
+    pub fn new(connector: NativeTlsConnector) -> Self {
         Self {
             inner: TokioTlsConnector::from(connector),
         }
@@ -72,7 +71,7 @@ impl NativeTlsConnector {
     }
 }
 
-impl MakeTlsConnect<Socket> for NativeTlsConnector {
+impl MakeTlsConnect<Socket> for TlsConnector {
     type Stream = NativeTlsStream;
     type TlsConnect = NativeTlsConnect;
     type Error = TlsError;
@@ -103,56 +102,22 @@ impl TlsConnect<Socket> for NativeTlsConnect {
     }
 }
 
-/// Enum to configure the TLS connection
-#[derive(Clone)]
-pub enum Tls {
-    Prefer,
-    Require,
-    VerifyCa,
-    VerifyIdentity,
-}
+pub fn configure(mode: TlsMode) -> Result<TlsConnector, PoolError> {
+    let mut builder = NativeTlsConnector::builder();
 
-impl Tls {
-    /// Configures TLS connection based on the selected TLS mode
-    ///
-    /// Creates a TLS connector with appropriate security settings for the
-    /// selected mode:
-    ///
-    /// - `Prefer` or `Require` accepts invalid certificates and hostnames
-    /// - `VerifyCa` requires valid certificates but accepts invalid hostnames
-    /// - `VerifyIdentity` requires valid certificates and hostnames
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use nanopool::tls::Tls;
-    ///
-    /// # fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let tls = Tls::configure(Tls::Prefer)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns a `PoolError` if the TLS connection cannot be built
-    pub fn configure(self) -> Result<NativeTlsConnector, PoolError> {
-        let mut builder = TlsConnector::builder();
-
-        match self {
-            Tls::Prefer | Tls::Require => {
-                builder.danger_accept_invalid_certs(true);
-                builder.danger_accept_invalid_hostnames(true);
-            }
-            Tls::VerifyCa => {
-                builder.danger_accept_invalid_hostnames(true);
-            }
-            Tls::VerifyIdentity => {}
+    match mode {
+        TlsMode::Prefer | TlsMode::Require => {
+            builder.danger_accept_invalid_certs(true);
+            builder.danger_accept_invalid_hostnames(true);
         }
-
-        let connector = builder.build()?;
-        Ok(NativeTlsConnector::new(connector))
+        TlsMode::VerifyCa => {
+            builder.danger_accept_invalid_hostnames(true);
+        }
+        TlsMode::VerifyIdentity => {}
     }
+
+    let connector = builder.build()?;
+    Ok(TlsConnector::new(connector))
 }
 
 #[cfg(test)]
@@ -160,22 +125,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_prefer_tls() {
-        assert!(Tls::configure(Tls::Prefer).is_ok());
-    }
-
-    #[test]
-    fn test_require_tls() {
-        assert!(Tls::configure(Tls::Require).is_ok());
-    }
-
-    #[test]
-    fn test_verify_ca_tls() {
-        assert!(Tls::configure(Tls::VerifyCa).is_ok());
-    }
-
-    #[test]
-    fn test_verify_identity_tls() {
-        assert!(Tls::configure(Tls::VerifyIdentity).is_ok());
+    fn test_configure_native_tls() {
+        assert!(configure(TlsMode::Prefer).is_ok());
     }
 }
