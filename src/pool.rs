@@ -295,7 +295,7 @@ impl Pool {
         <T as MakeTlsConnect<Socket>>::Stream: Send + 'static,
     {
         let mut clients = Vec::with_capacity(size);
-        let mut waiting = Vec::new();
+        let mut waiting = Vec::with_capacity(size);
         for _ in 0..size {
             let client = Self::connect(&config, tls.clone(), callback.clone()).await?;
             clients.push(client);
