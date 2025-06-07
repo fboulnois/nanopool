@@ -1,54 +1,27 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio_native_tls::native_tls::{Error as TlsError, TlsConnector as NativeTlsConnector};
-use tokio_native_tls::TlsConnector as TokioTlsConnector;
-use tokio_postgres::tls::{MakeTlsConnect, TlsConnect, TlsStream};
-use tokio_postgres::Socket;
+
+use tokio::io::BufReader;
+use tokio_native_tls::{
+    native_tls::{Error as TlsError, TlsConnector as NativeTlsConnector},
+    TlsConnector as TokioTlsConnector,
+};
+use tokio_postgres::{
+    tls::{ChannelBinding, MakeTlsConnect, TlsConnect, TlsStream},
+    Socket,
+};
 
 use crate::errors::PoolError;
-use crate::tls::TlsMode;
+use crate::tls::{stream::GenericTlsStream, TlsMode};
 
-pub struct NativeTlsStream(tokio_native_tls::TlsStream<Socket>);
+pub type NativeTlsStream = GenericTlsStream<tokio_native_tls::TlsStream<BufReader<Socket>>>;
 
 impl TlsStream for NativeTlsStream {
-    fn channel_binding(&self) -> tokio_postgres::tls::ChannelBinding {
-        tokio_postgres::tls::ChannelBinding::none()
-    }
-}
-
-impl AsyncRead for NativeTlsStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
-    ) -> Poll<std::io::Result<()>> {
-        Pin::new(&mut self.0).poll_read(cx, buf)
-    }
-}
-
-impl AsyncWrite for NativeTlsStream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        Pin::new(&mut self.0).poll_write(cx, buf)
-    }
-
-    fn poll_flush(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.0).poll_flush(cx)
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        Pin::new(&mut self.0).poll_shutdown(cx)
+    fn channel_binding(&self) -> ChannelBinding {
+        match self.inner().get_ref().tls_server_end_point().ok().flatten() {
+            Some(buf) => ChannelBinding::tls_server_end_point(buf),
+            None => ChannelBinding::none(),
+        }
     }
 }
 
@@ -58,14 +31,12 @@ pub struct TlsConnector {
 }
 
 impl TlsConnector {
-    #[must_use]
     pub fn new(connector: NativeTlsConnector) -> Self {
         Self {
             inner: TokioTlsConnector::from(connector),
         }
     }
 
-    #[must_use]
     pub fn inner(&self) -> &TokioTlsConnector {
         &self.inner
     }
@@ -96,8 +67,9 @@ impl TlsConnect<Socket> for NativeTlsConnect {
 
     fn connect(self, stream: Socket) -> Self::Future {
         Box::pin(async move {
-            let tls_stream = self.connector.connect(&self.domain, stream).await?;
-            Ok(NativeTlsStream(tls_stream))
+            let buffered = BufReader::new(stream);
+            let tls_stream = self.connector.connect(&self.domain, buffered).await?;
+            Ok(NativeTlsStream::new(tls_stream))
         })
     }
 }
