@@ -5,6 +5,7 @@ use std::{
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+/// A generic TLS stream wrapper
 pub struct GenericTlsStream<T>(T);
 
 impl<T> GenericTlsStream<T> {
@@ -17,6 +18,7 @@ impl<T> GenericTlsStream<T> {
     }
 }
 
+/// Implementation of `AsyncRead` for `GenericTlsStream`
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for GenericTlsStream<T> {
     fn poll_read(
         mut self: Pin<&mut Self>,
@@ -27,6 +29,7 @@ impl<T: AsyncRead + AsyncWrite + Unpin> AsyncRead for GenericTlsStream<T> {
     }
 }
 
+/// Implementation of `AsyncWrite` for `GenericTlsStream`
 impl<T: AsyncRead + AsyncWrite + Unpin> AsyncWrite for GenericTlsStream<T> {
     fn poll_write(
         mut self: Pin<&mut Self>,

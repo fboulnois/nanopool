@@ -14,8 +14,10 @@ use tokio_postgres::{
 use crate::errors::PoolError;
 use crate::tls::{stream::GenericTlsStream, TlsMode};
 
+/// A native and buffered TLS stream
 pub type NativeTlsStream = GenericTlsStream<tokio_native_tls::TlsStream<BufReader<Socket>>>;
 
+/// Implements channel binding for native TLS streams
 impl TlsStream for NativeTlsStream {
     fn channel_binding(&self) -> ChannelBinding {
         match self.inner().get_ref().tls_server_end_point().ok().flatten() {
@@ -25,11 +27,13 @@ impl TlsStream for NativeTlsStream {
     }
 }
 
+/// A generic wrapper for native TLS connections
 #[derive(Clone)]
 pub struct TlsConnector {
     inner: TokioTlsConnector,
 }
 
+/// Returns a native TLS connector instance
 impl TlsConnector {
     pub fn new(connector: NativeTlsConnector) -> Self {
         Self {
@@ -42,6 +46,7 @@ impl TlsConnector {
     }
 }
 
+/// Implements the `MakeTlsConnect` trait for native TLS connections
 impl MakeTlsConnect<Socket> for TlsConnector {
     type Stream = NativeTlsStream;
     type TlsConnect = NativeTlsConnect;
@@ -55,11 +60,13 @@ impl MakeTlsConnect<Socket> for TlsConnector {
     }
 }
 
+/// Native TLS connection implementation
 pub struct NativeTlsConnect {
     connector: TokioTlsConnector,
     domain: String,
 }
 
+/// Implements the `TlsConnect` trait for native TLS connections
 impl TlsConnect<Socket> for NativeTlsConnect {
     type Stream = NativeTlsStream;
     type Error = TlsError;
@@ -74,6 +81,7 @@ impl TlsConnect<Socket> for NativeTlsConnect {
     }
 }
 
+/// Configures TLS connection based on the selected TLS mode
 pub fn configure(mode: TlsMode) -> Result<TlsConnector, PoolError> {
     let mut builder = NativeTlsConnector::builder();
 
