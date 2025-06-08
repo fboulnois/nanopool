@@ -403,8 +403,8 @@ mod tests {
     const CONNECTION_STRING: &str = "postgresql://postgres:postgres@localhost/postgres";
     const POOL_SIZE: usize = 4;
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_notls() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
             .await
@@ -415,8 +415,8 @@ mod tests {
         assert_eq!(sum, 3);
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_tls() {
         let tls = tls::configure(tls::TlsMode::Prefer).unwrap();
         let pool = Pool::new(CONNECTION_STRING, tls, POOL_SIZE).await.unwrap();
@@ -439,8 +439,8 @@ mod tests {
         let _pool = Pool::from_config(config, NoTls, POOL_SIZE).await.unwrap();
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_client_query_error() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
             .await
@@ -452,8 +452,8 @@ mod tests {
         assert!(client.query_one("SELECT 1 + 2", &[]).await.is_err());
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_from_config() {
         let mut config = Config::new();
         let config = config
@@ -469,8 +469,8 @@ mod tests {
         assert_eq!(sum, 3);
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_from_config_with_callback() {
         let mut config = Config::new();
         let config = config
@@ -496,8 +496,8 @@ mod tests {
         assert!(client.query_one("SELECT 1 + 2", &[]).await.is_err());
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_mut_client() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
             .await
@@ -510,8 +510,8 @@ mod tests {
         assert_eq!(sum, 3);
     }
 
-    #[tokio::test]
     #[ignore = "requires a database connection"]
+    #[tokio::test]
     async fn test_pool_stress() {
         let pool = Pool::new(CONNECTION_STRING, NoTls, POOL_SIZE)
             .await
