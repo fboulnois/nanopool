@@ -6,6 +6,7 @@ authors = [ "fboulnois <fboulnois@users.noreply.github.com>" ]
 description = "A drop-in database connection pooling library for PostgreSQL"
 keywords = [ "async", "database", "pool", "postgres", "sql" ]
 categories = [ "database" ]
+readme = "README.md"
 license = "MIT"
 
 [features]
