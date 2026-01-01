@@ -12,7 +12,7 @@ The pool is backed by a Tokio `mpsc` channel, which is optimized for fast concur
 
 ```toml
 [dependencies]
-nanopool = "1.0"
+nanopool = "1.2"
 ```
 
 2. Create and use a connection pool:
